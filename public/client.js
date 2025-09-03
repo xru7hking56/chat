@@ -18,12 +18,9 @@
   const selGender  = $('#sel-gender');
   const selSeeking = $('#sel-seeking');
 
-  /* ===== Mobile niceties ===== */
   function setKbSafeBottom(px){
     document.documentElement.style.setProperty('--kb-safe-bottom', `${Math.max(0, Math.floor(px))}px`);
   }
-
-  // VisualViewport keeps input above the mobile keyboard
   if (window.visualViewport) {
     const vv = window.visualViewport;
     const applyVV = () => {
@@ -39,7 +36,6 @@
     requestAnimationFrame(()=> {
       if (!messages) return;
       messages.scrollTop = messages.scrollHeight;
-      // ensure last one is visible on iOS
       if (messages.lastElementChild) {
         messages.lastElementChild.scrollIntoView({ block: 'end', inline: 'nearest' });
       }
@@ -102,7 +98,6 @@
     if (s === 'connected') {
       addStrip('დაკავშირებული ხართ უცნობთან.', 'green');
       typingEl.hidden = true;
-      // On connect, focus the input on mobile to bring keyboard if user taps
       setTimeout(()=> input?.focus?.(), 50);
     } else if (s === 'disconnected') {
       addStrip('საუბარი დასრულდა.', 'violet');
@@ -118,7 +113,6 @@
     socket.emit('connectRequest');
   }
 
-  /* ===== UI events ===== */
   btnConnect?.addEventListener('click', connectNow);
 
   function doNext(){
@@ -138,7 +132,7 @@
     socket.emit('report', { reason, blockNext: !!doBlock });
     if (doBlock) {
       clearChat();
-      addStrip('მიმდინარეობს პარტნიოორის შერჩევა...', 'violet');
+      addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
     } else {
       alert('ანგარიში გადაიგზავნა.');
     }
@@ -167,7 +161,6 @@
   });
   input?.addEventListener('focus', scrollToBottom);
 
-  /* ===== socket events ===== */
   socket.on('message', ({ from, text, ts }) => addRow(from, text, ts || Date.now()));
   socket.on('system', (t) => addStrip(t, 'violet'));
   socket.on('status', ({ type }) => setStatus(type));
@@ -181,6 +174,5 @@
   window.addEventListener('resize', scrollToBottom);
   window.addEventListener('orientationchange', scrollToBottom);
 
-  /* initial hint */
   addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
 })();
