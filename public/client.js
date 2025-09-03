@@ -1,4 +1,3 @@
-
 (function () {
   const socket = window.io();
   const $ = (sel) => document.querySelector(sel);
@@ -17,6 +16,17 @@
   const selGender  = $('#sel-gender');
   const selSeeking = $('#sel-seeking');
 
+  function scrollToBottom(){
+    requestAnimationFrame(()=> {
+      const m = document.getElementById('messages');
+      if (!m) return;
+      m.scrollTop = m.scrollHeight;
+      if (m.lastElementChild) {
+        m.lastElementChild.scrollIntoView({ block: 'end', inline: 'nearest' });
+      }
+    });
+  }
+
   let typing = false;
   let typingTimeout = null;
 
@@ -26,16 +36,12 @@
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
-  function clearChat(){
-    messages.innerHTML = "";
-  }
-
-  function addStrip(text, kind){ // kind: 'violet' | 'green'
+  function addStrip(text, kind){
     const el = document.createElement('div');
     el.className = `msg strip ${kind}`;
     el.textContent = text;
     messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom();
   }
 
   function addRow(who, text, ts){
@@ -67,21 +73,25 @@
     row.appendChild(meta);
     row.appendChild(bubble);
     messages.appendChild(row);
-    messages.scrollTop = messages.scrollHeight;
+    scrollToBottom();
   }
 
-  function setStatus(s) { clearChat();
+  function clearChat(){
+    if (messages) messages.innerHTML = '';
+  }
+
+  function setStatus(s) {
+    clearChat();
     if (s === 'connected') {
-      clearChat();
       addStrip('დაკავშირებული ხართ უცნობთან.', 'green');
       typingEl.hidden = true;
     } else if (s === 'disconnected') {
       addStrip('საუბარი დასრულდა.', 'violet');
       typingEl.hidden = true;
     } else if (s === 'searching') {
-      clearChat();
       addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
     }
+    scrollToBottom();
   }
 
   function connectNow() {
@@ -100,9 +110,8 @@
     try { window.getSelection()?.removeAllRanges?.(); } catch {}
     socket.emit('report', { reason, blockNext: !!doBlock });
     if (doBlock) {
-      // Clear now for instant feedback; server will also break pair
-      const m = document.getElementById('messages'); if (m) m.innerHTML='';
-      const tip = document.createElement('div'); tip.className='msg strip violet'; tip.textContent='მიმდინარეობს პარტნიორის შერჩევა...'; m.appendChild(tip);
+      clearChat();
+      addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
     } else {
       alert('ანგარიში გადაიგზავნა.');
     }
@@ -130,17 +139,16 @@
   });
 
   // socket events
-  socket.on('message', ({ from, text, ts }) => {
-    addRow(from, text, ts || Date.now());
-  });
+  socket.on('message', ({ from, text, ts }) => addRow(from, text, ts || Date.now()));
   socket.on('system', (t) => addStrip(t, 'violet'));
   socket.on('status', ({ type }) => setStatus(type));
   socket.on('typing', (isTyping) => {
     typingEl.hidden = !isTyping;
     typingEl.textContent = isTyping ? 'ის წერს...' : '';
+    scrollToBottom();
   });
   socket.on('online', (n) => { onlineEl.textContent = String(n); });
 
-  // Initial
-  addStrip('მარტივი ანონიმური ჩათი. დააჭირე „დაკავშირება“.', 'violet');
+  // Initial tips
+  addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
 })();
