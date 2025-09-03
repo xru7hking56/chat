@@ -13,38 +13,72 @@
   const btnBlock   = $('#btn-block');
   const btnExit    = $('#btn-exit');
   const btnReport  = $('#btn-report');
-
   const selGender  = $('#sel-gender');
   const selSeeking = $('#sel-seeking');
 
-  /* ===== Mobile keyboard safe area ===== */
+  /* ============ Layout & keyboard handling ============ */
   function setKbSafeBottom(px){
     document.documentElement.style.setProperty('--kb-safe-bottom', `${Math.max(0, Math.floor(px))}px`);
   }
+  function viewportHeight() {
+    return window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  }
+  function computeLayout() {
+    const header = document.querySelector('.bar');
+    const bottom = document.querySelector('.bottom');
+    const hH = header ? header.getBoundingClientRect().height : 0;
+    const bH = bottom ? bottom.getBoundingClientRect().height : 0;
+    const pad = 4;
+    const vh = viewportHeight();
+    const h = Math.max(120, Math.floor(vh - hH - bH - pad));
+    if (messages) {
+      messages.style.height = h + 'px';
+      messages.style.maxHeight = h + 'px';
+      messages.style.overflowY = 'auto';
+    }
+  }
+  // VisualViewport to lift input above keyboard + recalc layout
   if (window.visualViewport) {
     const vv = window.visualViewport;
     const applyVV = () => {
       const bottomGap = (window.innerHeight - (vv.height + vv.offsetTop));
       setKbSafeBottom(bottomGap);
-      scrollToBottom();
+      computeLayout();
+      maybeScrollToBottom(true); // gentle nudge
     };
     vv.addEventListener('resize', applyVV);
     vv.addEventListener('scroll', applyVV);
     applyVV();
   }
 
-  /* ===== Auto scroll to newest ===== */
-  function scrollToBottom(){
-    requestAnimationFrame(()=> {
-      if (!messages) return;
-      messages.scrollTop = messages.scrollHeight;
-      const last = messages.lastElementChild;
-      if (last) last.scrollIntoView({ block: 'end', inline: 'nearest' });
-    });
+  // Debounced resize/orientation handling
+  let rAF;
+  function scheduleLayout() {
+    if (rAF) cancelAnimationFrame(rAF);
+    rAF = requestAnimationFrame(() => { computeLayout(); maybeScrollToBottom(true); });
   }
-  const mo = new MutationObserver(scrollToBottom);
+  window.addEventListener('resize', scheduleLayout);
+  window.addEventListener('orientationchange', () => setTimeout(scheduleLayout, 150));
+
+  /* ============ Smart autoscroll ============ */
+  function atBottom(threshold = 80) {
+    if (!messages) return true;
+    return (messages.scrollHeight - messages.scrollTop - messages.clientHeight) < threshold;
+  }
+  function scrollToBottom() {
+    if (!messages) return;
+    messages.scrollTop = messages.scrollHeight;
+    const last = messages.lastElementChild;
+    if (last) last.scrollIntoView({ block: 'end', inline: 'nearest' });
+  }
+  function maybeScrollToBottom(force = false) {
+    if (force || atBottom()) scrollToBottom();
+  }
+  // Observe new nodes and autoscroll only if near bottom
+  const mo = new MutationObserver(() => maybeScrollToBottom(false));
   if (messages) mo.observe(messages, { childList: true });
 
+  /* ============ Render helpers ============ */
   function fmtTime(ts){
     const d = new Date(ts || Date.now());
     const pad = (n)=>String(n).padStart(2,'0');
@@ -88,13 +122,17 @@
   }
   function clearChat(){ if (messages) messages.innerHTML = ''; }
 
-  /* ===== UI actions (existing only) ===== */
+  /* ============ UI events (existing buttons only) ============ */
   function connectNow() {
     socket.emit('setProfile', { gender: selGender?.value || 'secret', seeking: selSeeking?.value || 'any' });
     socket.emit('connectRequest');
   }
   btnConnect?.addEventListener('click', connectNow);
-  btnNext?.addEventListener('click', () => { clearChat(); addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet'); socket.emit('next'); });
+  btnNext?.addEventListener('click', () => {
+    clearChat();
+    addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
+    socket.emit('next');
+  });
   btnBlock?.addEventListener('click', () => socket.emit('block'));
   btnExit?.addEventListener('click', () => window.location.href = '/');
   btnReport?.addEventListener('click', () => {
@@ -116,17 +154,18 @@
     if (!text) return;
     socket.emit('message', text);
     input.value = '';
+    input.focus();               // keep keyboard up
     socket.emit('typing', false);
-    scrollToBottom();
+    maybeScrollToBottom(true);
   });
   input?.addEventListener('input', () => {
     socket.emit('typing', true);
     clearTimeout(input._tt);
     input._tt = setTimeout(()=> socket.emit('typing', false), 700);
   });
-  input?.addEventListener('focus', scrollToBottom);
+  input?.addEventListener('focus', () => { scheduleLayout(); maybeScrollToBottom(true); });
 
-  /* ===== sockets ===== */
+  /* ============ socket events ============ */
   socket.on('message', ({ from, text, ts }) => addRow(from, text, ts || Date.now()));
   socket.on('system', (t) => addStrip(t, 'violet'));
   socket.on('status', ({ type }) => {
@@ -141,17 +180,16 @@
     } else if (type === 'searching') {
       addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
     }
-    scrollToBottom();
+    maybeScrollToBottom(true);
   });
   socket.on('typing', (isTyping) => {
     typingEl.hidden = !isTyping;
     typingEl.textContent = isTyping ? 'ის წერს...' : '';
-    scrollToBottom();
+    maybeScrollToBottom(false);
   });
   socket.on('online', (n) => { onlineEl && (onlineEl.textContent = String(n)); });
 
-  window.addEventListener('resize', scrollToBottom);
-  window.addEventListener('orientationchange', scrollToBottom);
-
+  // initial layout & hint
+  scheduleLayout();
   addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
 })();
