@@ -1,5 +1,5 @@
 /* =====================================================
-   AnonChat — Simple Blue/Orange Theme (Responsive)
+   AnonChat — Simple Blue/Orange Theme (Responsive + Mobile Behavior)
    ===================================================== */
 
 :root{
@@ -12,8 +12,12 @@
   --text:#0f172a;
   --muted:#6b7280;
   --border:#e5e7eb;
-  --tap: 44px;
+
+  --tap: 44px; /* minimum touch size */
   --gap: 10px;
+
+  /* updated at runtime when keyboard shows */
+  --kb-safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 *{ box-sizing:border-box; }
@@ -27,24 +31,12 @@ body{
 
 /* ---------------- Header ---------------- */
 .bar{
-  position: sticky; top: 0; z-index: 1000; /* ✅ always visible */
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  background:var(--blue);
-  color:#fff;
-  min-height:48px;
-  padding:8px 10px;
-  gap:8px;
-  flex-wrap:wrap; /* responsive wrap */
+  position: sticky; top: 0; z-index: 1000; /* always visible */
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--blue); color:#fff; min-height:48px;
+  padding:8px 10px; gap:8px; flex-wrap:wrap;
 }
-.bar .left,
-.bar .right{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-}
+.bar .left, .bar .right{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 
 .brand{ display:flex; align-items:center; gap:6px; margin-right:6px; }
 .brand .dot{ width:22px; height:22px; border-radius:4px; background:#fff; display:inline-block; }
@@ -78,15 +70,18 @@ body{
 
 /* ---------------- Main Canvas ---------------- */
 .canvas{
-  position:fixed; inset:48px 0 0 0; /* under header (desktop) */
+  /* desktop: fixed area under header; mobile will switch to normal flow */
+  position:fixed; inset:48px 0 0 0;
   background:#fff; display:grid; grid-template-rows: 1fr auto auto;
 }
 
+/* Messages */
 .messages{
   overflow:auto; padding:14px; display:flex; flex-direction:column; gap:16px;
   scroll-behavior:smooth; overscroll-behavior:contain;
 }
 
+/* System strips */
 .msg.strip{ padding:12px 14px; border-radius:4px; color:#fff; font-weight:700; }
 .strip.violet{ background:var(--violet); }
 .strip.green{ background:var(--green); }
@@ -111,14 +106,25 @@ body{
 
 /* Bottom input */
 .bottom{
-  display:flex; align-items:center; gap:10px; padding:10px; border-top:1px solid var(--border); background:#fff;
+  display:flex; align-items:center; gap:10px; padding:10px;
+  border-top:1px solid var(--border); background:#fff;
+  padding-bottom: calc(10px + var(--kb-safe-bottom)); /* lift above keyboard */
 }
 .bottom input{
-  flex:1; height:40px; border:2px solid var(--green); border-radius:4px; padding:0 10px; font-size:16px;
+  flex:1; min-height:40px; border:2px solid var(--green); border-radius:4px; padding:0 10px; font-size:16px;
 }
 .bottom .send{
-  height:40px; border-radius:4px; font-weight:800; background:var(--green); color:#fff; border:none;
+  min-height:40px; border-radius:4px; font-weight:800; background:var(--green); color:#fff; border:none;
 }
+
+/* Floating Next (phones) */
+.fab-next{
+  position: fixed; right: 12px; bottom: calc(12px + var(--kb-safe-bottom));
+  width: 52px; height: 52px; border-radius: 26px; border: none; cursor: pointer;
+  background: var(--violet); color: #fff; font-size: 22px; line-height: 52px; text-align: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,.2); display: none; z-index: 1001;
+}
+.fab-next:active{ transform: translateY(1px); }
 
 /* ---------------- Responsive ---------------- */
 @media (max-width: 720px){
@@ -133,19 +139,20 @@ body{
   .dropdown{ display:flex; }
   .dropdown select{ flex:1 1 160px; max-width:100%; min-height: var(--tap); }
 
-  /* Let page flow on mobile; header is sticky so it's fine */
+  /* Let page flow; header stays sticky */
   .canvas{ position: static; min-height: 100dvh; }
 
   .messages{ padding:14px; gap:14px; }
   .row .meta{ font-size:14px; }
   .bubble .text{ font-size:16px; line-height:1.45; }
 
-  /* Sticky input at bottom with safe area */
+  /* Sticky input; respect safe area */
   .bottom{
     position: sticky; bottom: 0;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-bottom: calc(10px + var(--kb-safe-bottom));
   }
-  .bottom input, .bottom .send{ min-height: var(--tap); font-size:16px; }
+
+  .fab-next{ display: inline-block; } /* show FAB on phones */
 }
 
 @media (min-width:721px) and (max-width:1024px){
