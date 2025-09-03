@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ka">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin • Reports</title>
+  <style>
+    body{font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#f6f7fb;color:#0f172a}
+    header{background:#0b79ff;color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+    .keybox{display:flex;gap:8px;align-items:center}
+    .keybox input{width:280px;height:36px;border-radius:6px;border:1px solid #d1d5db;padding:0 10px}
+    main{padding:14px;max-width:1100px;margin:0 auto}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb}
+    th,td{border-bottom:1px solid #e5e7eb;padding:8px 10px;text-align:left;vertical-align:top}
+    th{background:#f1f5f9}
+    .btn{height:30px;border-radius:6px;border:1px solid #d1d5db;background:#fff;padding:0 10px;cursor:pointer}
+    .btn.primary{background:#22c55e;border-color:#22c55e;color:#fff}
+    .btn.red{background:#ef4444;border-color:#ef4444;color:#fff}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; white-space:pre-wrap}
+    details{background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Admin • Reports</strong>
+    <div class="keybox">
+      <input id="key" placeholder="Enter ADMIN_KEY" />
+      <button id="save" class="btn">Save</button>
+      <button id="reload" class="btn">Reload</button>
+      <a href="/healthz" class="btn">Health</a>
+    </div>
+  </header>
+  <main>
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Reporter IP</th>
+          <th>Reported IP</th>
+          <th>Reason</th>
+          <th>Transcript</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+
+  <script>
+    const keyEl = document.getElementById('key');
+    const saveBtn = document.getElementById('save');
+    const reloadBtn = document.getElementById('reload');
+    const tbody = document.querySelector('#tbl tbody');
+
+    keyEl.value = localStorage.getItem('ADMIN_KEY') || '';
+
+    saveBtn.onclick = () => {
+      localStorage.setItem('ADMIN_KEY', keyEl.value.trim());
+      loadReports();
+    };
+    reloadBtn.onclick = () => loadReports();
+
+    async function api(path, opts={}) {
+      const k = (localStorage.getItem('ADMIN_KEY')||'').trim();
+      const res = await fetch(path, { ...opts, headers: { 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json', ...(opts.headers||{}) } });
+      if (!res.ok) throw new Error('API error ' + res.status);
+      return res.json();
+    }
+
+    function fmt(ts){ const d=new Date(ts); return d.toLocaleString(); }
+
+    async function loadReports() {
+      tbody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+      try {
+        const data = await api('/admin/api/reports');
+        tbody.innerHTML = '';
+        if (!data.reports.length) {
+          tbody.innerHTML = '<tr><td colspan="6">No reports.</td></tr>';
+          return;
+        }
+        for (const r of data.reports) {
+          const tr = document.createElement('tr');
+          const transcript = (r.transcript||[]).map(x => `${new Date(x.ts).toLocaleTimeString()}  ${x.type === 'message' ? (x.from||'-')+': ' : ''}${x.text}`).join('\n');
+
+          tr.innerHTML = `
+            <td>${fmt(r.ts)}</td>
+            <td>${r.reporterIP||'-'}</td>
+            <td>${r.reportedIP||'-'}</td>
+            <td class="mono">${(r.reason||'').replace(/</g,'&lt;')}</td>
+            <td>
+              <details>
+                <summary>View transcript (${(r.transcript||[]).length} lines)</summary>
+                <pre class="mono">${transcript.replace(/</g,'&lt;')}</pre>
+              </details>
+            </td>
+            <td>
+              <button class="btn primary" data-ban="${r.reportedIP}">Ban IP</button>
+              <button class="btn red" data-resolve="${r.id}">Resolve</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        tbody.querySelectorAll('[data-ban]').forEach(btn => {
+          btn.onclick = async () => {
+            const ip = btn.getAttribute('data-ban');
+            if (!ip || !confirm('Ban IP ' + ip + '?')) return;
+            await api('/admin/api/ban', { method:'POST', body: JSON.stringify({ ip }) });
+            alert('Banned ' + ip);
+          };
+        });
+        tbody.querySelectorAll('[data-resolve]').forEach(btn => {
+          btn.onclick = async () => {
+            const id = btn.getAttribute('data-resolve');
+            await api('/admin/api/resolve', { method:'POST', body: JSON.stringify({ id }) });
+            loadReports();
+          };
+        });
+
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6">Auth failed or network error.</td></tr>';
+      }
+    }
+
+    loadReports();
+  </script>
+</body>
+</html>
