@@ -12,8 +12,7 @@
   --text:#0f172a;
   --muted:#6b7280;
   --border:#e5e7eb;
-
-  --tap: 44px;   /* touch min size */
+  --tap: 44px;
   --gap: 10px;
 }
 
@@ -28,6 +27,7 @@ body{
 
 /* ---------------- Header ---------------- */
 .bar{
+  position: sticky; top: 0; z-index: 1000; /* ✅ always visible */
   display:flex;
   align-items:center;
   justify-content:space-between;
@@ -36,7 +36,7 @@ body{
   min-height:48px;
   padding:8px 10px;
   gap:8px;
-  flex-wrap:wrap;
+  flex-wrap:wrap; /* responsive wrap */
 }
 .bar .left,
 .bar .right{
@@ -50,87 +50,50 @@ body{
 .brand .dot{ width:22px; height:22px; border-radius:4px; background:#fff; display:inline-block; }
 .brand-text{ color:#fff; font-weight:800; }
 
+/* Buttons/controls */
 .btn{
-  appearance:none;
-  border:none;
-  border-radius:6px;
-  height:34px;
-  padding:0 12px;
-  color:#fff;
-  font-weight:700;
-  cursor:pointer;
+  appearance:none; border:none; border-radius:6px;
+  height:34px; padding:0 12px; color:#fff; font-weight:700; cursor:pointer;
   transition: transform .04s ease, opacity .15s ease;
 }
 .btn:hover{ opacity:.95; }
 .btn:active{ transform: translateY(1px); }
-
 .btn.orange{ background:var(--orange); }
 .btn.violet{ background:var(--violet); }
 .btn.red{ background:var(--red); }
 .btn.green{ background:var(--green); }
 .btn.blue{ background:var(--blue); }
-.btn.outline{
-  background:transparent;
-  border:2px solid rgba(255,255,255,.9);
-  color:#fff;
-}
+.btn.outline{ background:transparent; border:2px solid rgba(255,255,255,.9); color:#fff; }
 
 .badge{
-  background:#fff;
-  color:#1f2937;
-  padding:6px 10px;
-  border-radius:999px;
-  font-weight:700;
-  border:2px solid rgba(255,255,255,.6);
+  background:#fff; color:#1f2937; padding:6px 10px; border-radius:999px;
+  font-weight:700; border:2px solid rgba(255,255,255,.6);
 }
 
 .dropdown{ display:flex; align-items:center; gap:6px; color:#fff; }
 .dropdown label{ font-weight:700; }
 .dropdown select{
-  height:32px;
-  border-radius:6px;
-  border:1px solid #fff;
-  background:#fff;
-  color:#111;
-  padding:0 8px;
+  height:32px; border-radius:6px; border:1px solid #fff; background:#fff; color:#111; padding:0 8px;
 }
 
 /* ---------------- Main Canvas ---------------- */
 .canvas{
-  position:fixed;
-  inset:48px 0 0 0;
-  background:#fff;
-  display:grid;
-  grid-template-rows: 1fr auto auto;
+  position:fixed; inset:48px 0 0 0; /* under header (desktop) */
+  background:#fff; display:grid; grid-template-rows: 1fr auto auto;
 }
 
 .messages{
-  overflow:auto;
-  padding:14px;
-  display:flex;
-  flex-direction:column;
-  gap:16px;
-  scroll-behavior:smooth;
+  overflow:auto; padding:14px; display:flex; flex-direction:column; gap:16px;
+  scroll-behavior:smooth; overscroll-behavior:contain;
 }
 
-.msg.strip{
-  padding:12px 14px;
-  border-radius:4px;
-  color:#fff;
-  font-weight:700;
-}
+.msg.strip{ padding:12px 14px; border-radius:4px; color:#fff; font-weight:700; }
 .strip.violet{ background:var(--violet); }
 .strip.green{ background:var(--green); }
 
+/* Chat rows */
 .row{ display:flex; flex-direction:column; gap:6px; }
-.row .meta{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  color:var(--muted);
-  font-weight:700;
-  font-size:14px;
-}
+.row .meta{ display:flex; align-items:center; gap:10px; color:var(--muted); font-weight:700; font-size:14px; }
 .row .meta .who.you{ color:var(--blue); }
 .row .meta .who.stranger{ color:var(--orange); }
 .row .meta .time{ opacity:.8; font-weight:600; }
@@ -143,35 +106,18 @@ body{
 .row.stranger .bar{ background:var(--orange); }
 .row.stranger .text{ color:var(--orange); }
 
-.typing{
-  color:#f59e0b;
-  padding:4px 14px;
-  font-weight:700;
-}
+/* Typing indicator */
+.typing{ color:#f59e0b; padding:4px 14px; font-weight:700; }
 
+/* Bottom input */
 .bottom{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:10px;
-  border-top:1px solid var(--border);
-  background:#fff;
+  display:flex; align-items:center; gap:10px; padding:10px; border-top:1px solid var(--border); background:#fff;
 }
 .bottom input{
-  flex:1;
-  height:40px;
-  border:2px solid var(--green);
-  border-radius:4px;
-  padding:0 10px;
-  font-size:16px;
+  flex:1; height:40px; border:2px solid var(--green); border-radius:4px; padding:0 10px; font-size:16px;
 }
 .bottom .send{
-  height:40px;
-  border-radius:4px;
-  font-weight:800;
-  background:var(--green);
-  color:#fff;
-  border:none;
+  height:40px; border-radius:4px; font-weight:800; background:var(--green); color:#fff; border:none;
 }
 
 /* ---------------- Responsive ---------------- */
@@ -180,32 +126,26 @@ body{
   .brand .dot{ width:18px; height:18px; }
 
   #btn-connect, #btn-next, #btn-block, #btn-exit, .badge{
-    flex:1 1 calc(50% - var(--gap));
-    min-height: var(--tap);
-    font-size:16px;
+    flex: 1 1 calc(50% - var(--gap));
+    min-height: var(--tap); font-size:16px;
   }
   .btn{ min-height: var(--tap); padding:0 14px; }
   .dropdown{ display:flex; }
   .dropdown select{ flex:1 1 160px; max-width:100%; min-height: var(--tap); }
 
-  .canvas{
-    position:static;
-    min-height:100dvh;
-  }
+  /* Let page flow on mobile; header is sticky so it's fine */
+  .canvas{ position: static; min-height: 100dvh; }
 
   .messages{ padding:14px; gap:14px; }
   .row .meta{ font-size:14px; }
   .bubble .text{ font-size:16px; line-height:1.45; }
 
+  /* Sticky input at bottom with safe area */
   .bottom{
-    position:sticky;
-    bottom:0;
-    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    position: sticky; bottom: 0;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
   }
-  .bottom input, .bottom .send{
-    min-height: var(--tap);
-    font-size:16px;
-  }
+  .bottom input, .bottom .send{ min-height: var(--tap); font-size:16px; }
 }
 
 @media (min-width:721px) and (max-width:1024px){
@@ -214,7 +154,4 @@ body{
 }
 
 /* Accessibility */
-:focus-visible{
-  outline:3px solid rgba(11,121,255,.35);
-  outline-offset:2px;
-}
+:focus-visible{ outline:3px solid rgba(11,121,255,.35); outline-offset:2px; }
