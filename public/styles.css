@@ -1,112 +1,220 @@
-/* --- Base mobile-friendly touch sizes --- */
+/* =====================================================
+   AnonChat — Simple Blue/Orange Theme (Responsive)
+   ===================================================== */
+
 :root{
-  --tap: 44px;      /* minimum tap target */
+  --blue:#0b79ff;
+  --orange:#f58a00;
+  --violet:#8e44ad;
+  --green:#31aa22;
+  --red:#ff1f4b;
+  --bg:#ffffff;
+  --text:#0f172a;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+
+  --tap: 44px;   /* touch min size */
   --gap: 10px;
 }
 
-/* Buttons & selects: larger on touch */
-.btn, .dropdown select {
-  min-height: var(--tap);
-  padding: 0 14px;
-  font-size: 16px;
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 }
 
-/* Make the top bar wrap gracefully */
+/* ---------------- Header ---------------- */
 .bar{
-  display:flex; align-items:center; justify-content:space-between;
-  background:var(--blue); color:#fff; min-height:48px; padding:8px 10px;
-  flex-wrap: wrap;               /* ✅ allow wrapping */
-  gap: 8px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--blue);
+  color:#fff;
+  min-height:48px;
+  padding:8px 10px;
+  gap:8px;
+  flex-wrap:wrap;
 }
-.bar .left, .bar .right{
-  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-}
-
-/* Brand sits on its own row on small screens */
-@media (max-width: 720px){
-  .bar{
-    padding: 10px;
-  }
-  .brand{
-    width: 100%;
-    margin-bottom: 4px;
-  }
-  .brand .dot{ width:18px; height:18px; }
-
-  /* Controls stack into two neat rows */
-  .bar .left, .bar .right{
-    width: 100%;
-    gap: 8px;
-  }
-
-  /* Keep important actions first */
-  #btn-connect, #btn-next, #btn-block{
-    flex: 1 1 calc(50% - var(--gap));
-  }
-
-  /* Show dropdowns on mobile (previously hidden) */
-  .dropdown{ display:flex; }
-  .dropdown select{
-    flex: 1 1 160px;
-    max-width: 240px;
-  }
-
-  /* Badge scales down nicely */
-  .badge{
-    padding: 6px 10px;
-    font-size: 14px;
-  }
+.bar .left,
+.bar .right{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
 }
 
-/* Chat canvas fills viewport under header; input sticks at bottom */
+.brand{ display:flex; align-items:center; gap:6px; margin-right:6px; }
+.brand .dot{ width:22px; height:22px; border-radius:4px; background:#fff; display:inline-block; }
+.brand-text{ color:#fff; font-weight:800; }
+
+.btn{
+  appearance:none;
+  border:none;
+  border-radius:6px;
+  height:34px;
+  padding:0 12px;
+  color:#fff;
+  font-weight:700;
+  cursor:pointer;
+  transition: transform .04s ease, opacity .15s ease;
+}
+.btn:hover{ opacity:.95; }
+.btn:active{ transform: translateY(1px); }
+
+.btn.orange{ background:var(--orange); }
+.btn.violet{ background:var(--violet); }
+.btn.red{ background:var(--red); }
+.btn.green{ background:var(--green); }
+.btn.blue{ background:var(--blue); }
+.btn.outline{
+  background:transparent;
+  border:2px solid rgba(255,255,255,.9);
+  color:#fff;
+}
+
+.badge{
+  background:#fff;
+  color:#1f2937;
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:700;
+  border:2px solid rgba(255,255,255,.6);
+}
+
+.dropdown{ display:flex; align-items:center; gap:6px; color:#fff; }
+.dropdown label{ font-weight:700; }
+.dropdown select{
+  height:32px;
+  border-radius:6px;
+  border:1px solid #fff;
+  background:#fff;
+  color:#111;
+  padding:0 8px;
+}
+
+/* ---------------- Main Canvas ---------------- */
 .canvas{
-  position: fixed;
-  inset: calc(48px + 0px) 0 0 0;     /* header height is dynamic now */
+  position:fixed;
+  inset:48px 0 0 0;
   background:#fff;
   display:grid;
   grid-template-rows: 1fr auto auto;
 }
 
-/* On small screens, account for wrapped header height dynamically */
+.messages{
+  overflow:auto;
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  scroll-behavior:smooth;
+}
+
+.msg.strip{
+  padding:12px 14px;
+  border-radius:4px;
+  color:#fff;
+  font-weight:700;
+}
+.strip.violet{ background:var(--violet); }
+.strip.green{ background:var(--green); }
+
+.row{ display:flex; flex-direction:column; gap:6px; }
+.row .meta{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:var(--muted);
+  font-weight:700;
+  font-size:14px;
+}
+.row .meta .who.you{ color:var(--blue); }
+.row .meta .who.stranger{ color:var(--orange); }
+.row .meta .time{ opacity:.8; font-weight:600; }
+
+.bubble{ display:flex; align-items:flex-start; gap:10px; }
+.bubble .bar{ width:6px; height:26px; border-radius:2px; margin-top:2px; }
+.bubble .text{ font-weight:700; }
+.row.you  .bar{ background:var(--blue); }
+.row.you  .text{ color:var(--blue); }
+.row.stranger .bar{ background:var(--orange); }
+.row.stranger .text{ color:var(--orange); }
+
+.typing{
+  color:#f59e0b;
+  padding:4px 14px;
+  font-weight:700;
+}
+
+.bottom{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px;
+  border-top:1px solid var(--border);
+  background:#fff;
+}
+.bottom input{
+  flex:1;
+  height:40px;
+  border:2px solid var(--green);
+  border-radius:4px;
+  padding:0 10px;
+  font-size:16px;
+}
+.bottom .send{
+  height:40px;
+  border-radius:4px;
+  font-weight:800;
+  background:var(--green);
+  color:#fff;
+  border:none;
+}
+
+/* ---------------- Responsive ---------------- */
 @media (max-width: 720px){
+  .brand{ width:100%; margin:2px 0 6px; }
+  .brand .dot{ width:18px; height:18px; }
+
+  #btn-connect, #btn-next, #btn-block, #btn-exit, .badge{
+    flex:1 1 calc(50% - var(--gap));
+    min-height: var(--tap);
+    font-size:16px;
+  }
+  .btn{ min-height: var(--tap); padding:0 14px; }
+  .dropdown{ display:flex; }
+  .dropdown select{ flex:1 1 160px; max-width:100%; min-height: var(--tap); }
+
   .canvas{
-    position: static;          /* let the page flow on mobile */
-    min-height: 100dvh;        /* viewport height incl. mobile UI bars */
+    position:static;
+    min-height:100dvh;
+  }
+
+  .messages{ padding:14px; gap:14px; }
+  .row .meta{ font-size:14px; }
+  .bubble .text{ font-size:16px; line-height:1.45; }
+
+  .bottom{
+    position:sticky;
+    bottom:0;
+    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+  }
+  .bottom input, .bottom .send{
+    min-height: var(--tap);
+    font-size:16px;
   }
 }
 
-/* Messages: comfortable padding & spacing */
-.messages{
-  overflow:auto; padding:14px; display:flex; flex-direction:column; gap:14px;
-  scroll-behavior: smooth;
+@media (min-width:721px) and (max-width:1024px){
+  .btn, .dropdown select{ min-height:40px; }
+  .bubble .text{ font-size:16px; }
 }
 
-/* Message rows: keep readable on small screens */
-.row .meta{ font-size: 14px; }
-.bubble .text{ font-size: 16px; line-height: 1.45; }
-
-/* Typing indicator pinned just above input on mobile */
-.typing{ padding: 4px 14px; font-size: 14px; }
-
-/* Bottom input: full-width, big tap targets */
-.bottom{
-  position: sticky;
-  bottom: 0;
-  background: #fff;
-  display:flex; align-items:center; gap:10px; padding:10px;
-  border-top: 1px solid var(--border);
-}
-.bottom input{
-  flex:1; min-height: var(--tap); font-size:16px; padding:0 12px;
-}
-.bottom .send{
-  min-height: var(--tap); padding: 0 16px; font-size:16px;
-}
-
-/* Make strips readable on mobile */
-.msg.strip{ font-size: 15px; padding: 12px 14px; }
-
-/* Prevent header overlap when it wraps */
-@media (max-width: 720px){
-  body { padding-top: 0; }
+/* Accessibility */
+:focus-visible{
+  outline:3px solid rgba(11,121,255,.35);
+  outline-offset:2px;
 }
