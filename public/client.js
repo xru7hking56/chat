@@ -13,16 +13,35 @@
   const btnBlock   = $('#btn-block');
   const btnExit    = $('#btn-exit');
   const btnReport  = $('#btn-report');
+  const fabNext    = $('#fab-next');
+
   const selGender  = $('#sel-gender');
   const selSeeking = $('#sel-seeking');
 
+  /* ===== Mobile niceties ===== */
+  function setKbSafeBottom(px){
+    document.documentElement.style.setProperty('--kb-safe-bottom', `${Math.max(0, Math.floor(px))}px`);
+  }
+
+  // VisualViewport keeps input above the mobile keyboard
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const applyVV = () => {
+      const bottomGap = (window.innerHeight - (vv.height + vv.offsetTop));
+      setKbSafeBottom(bottomGap);
+    };
+    vv.addEventListener('resize', applyVV);
+    vv.addEventListener('scroll', applyVV);
+    applyVV();
+  }
+
   function scrollToBottom(){
     requestAnimationFrame(()=> {
-      const m = document.getElementById('messages');
-      if (!m) return;
-      m.scrollTop = m.scrollHeight;
-      if (m.lastElementChild) {
-        m.lastElementChild.scrollIntoView({ block: 'end', inline: 'nearest' });
+      if (!messages) return;
+      messages.scrollTop = messages.scrollHeight;
+      // ensure last one is visible on iOS
+      if (messages.lastElementChild) {
+        messages.lastElementChild.scrollIntoView({ block: 'end', inline: 'nearest' });
       }
     });
   }
@@ -76,15 +95,15 @@
     scrollToBottom();
   }
 
-  function clearChat(){
-    if (messages) messages.innerHTML = '';
-  }
+  function clearChat(){ if (messages) messages.innerHTML = ''; }
 
   function setStatus(s) {
     clearChat();
     if (s === 'connected') {
       addStrip('დაკავშირებული ხართ უცნობთან.', 'green');
       typingEl.hidden = true;
+      // On connect, focus the input on mobile to bring keyboard if user taps
+      setTimeout(()=> input?.focus?.(), 50);
     } else if (s === 'disconnected') {
       addStrip('საუბარი დასრულდა.', 'violet');
       typingEl.hidden = true;
@@ -99,10 +118,18 @@
     socket.emit('connectRequest');
   }
 
-  // UI events
+  /* ===== UI events ===== */
   btnConnect?.addEventListener('click', connectNow);
-  btnNext?.addEventListener('click', () => { clearChat(); addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet'); socket.emit('next'); });
-  btnBlock?.addEventListener('click', () => socket.emit('block'));
+
+  function doNext(){
+    clearChat();
+    addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
+    socket.emit('next');
+  }
+  btnNext?.addEventListener('click', doNext);
+  fabNext?.addEventListener('click', doNext);
+
+  $('#btn-block')?.addEventListener('click', () => socket.emit('block'));
   btnExit?.addEventListener('click', () => window.location.href = '/');
   btnReport?.addEventListener('click', () => {
     const reason = prompt('რაც შეიძლება მოკლედ აღწერე დარღვევა (არასავალდებულო):', '');
@@ -111,7 +138,7 @@
     socket.emit('report', { reason, blockNext: !!doBlock });
     if (doBlock) {
       clearChat();
-      addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
+      addStrip('მიმდინარეობს პარტნიოორის შერჩევა...', 'violet');
     } else {
       alert('ანგარიში გადაიგზავნა.');
     }
@@ -124,6 +151,7 @@
     socket.emit('message', text);
     input.value = '';
     socket.emit('typing', false);
+    scrollToBottom();
   });
 
   input?.addEventListener('input', () => {
@@ -137,8 +165,9 @@
       socket.emit('typing', false);
     }, 700);
   });
+  input?.addEventListener('focus', scrollToBottom);
 
-  // socket events
+  /* ===== socket events ===== */
   socket.on('message', ({ from, text, ts }) => addRow(from, text, ts || Date.now()));
   socket.on('system', (t) => addStrip(t, 'violet'));
   socket.on('status', ({ type }) => setStatus(type));
@@ -149,6 +178,9 @@
   });
   socket.on('online', (n) => { onlineEl.textContent = String(n); });
 
-  // Initial tips
+  window.addEventListener('resize', scrollToBottom);
+  window.addEventListener('orientationchange', scrollToBottom);
+
+  /* initial hint */
   addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
 })();
