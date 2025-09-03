@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin • Reports</title>
+  <style>
+    body{font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:20px;}
+    header{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+    input[type=text]{padding:8px;border:1px solid #ccc;border-radius:6px;min-width:280px}
+    button{padding:8px 12px;border-radius:6px;border:1px solid #ddd;background:#0b79ff;color:#fff;font-weight:700;cursor:pointer}
+    table{width:100%;border-collapse:collapse;margin-top:14px}
+    th,td{border:1px solid #eee;padding:8px;text-align:left;vertical-align:top}
+    details{background:#f8fafc;border:1px solid #eef;padding:8px;border-radius:6px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .ban{background:#ff1f4b}
+    .resolve{background:#0ea5e9}
+  </style>
+</head>
+<body>
+  <header>
+    <input id="key" type="text" placeholder="Paste ADMIN_KEY and press Save" />
+    <button onclick="saveKey()">Save</button>
+    <button onclick="loadReports()">Refresh</button>
+  </header>
+  <div id="out"></div>
+  <script>
+    let KEY = localStorage.getItem('ADMIN_KEY') || '';
+    document.getElementById('key').value = KEY;
+    function saveKey(){ KEY = document.getElementById('key').value.trim(); localStorage.setItem('ADMIN_KEY', KEY); alert('Saved.'); }
+    async function loadReports(){
+      const res = await fetch('/admin/api/reports', { headers: { Authorization: 'Bearer ' + KEY }});
+      if (!res.ok) { document.getElementById('out').innerHTML = '<p>Auth failed.</p>'; return; }
+      const data = await res.json();
+      const rows = (data.reports||[]).map(r => `
+        <tr>
+          <td>${new Date(r.ts).toLocaleString()}</td>
+          <td>
+            <div><b>Reporter:</b> ${r.reporterIP || ''}</div>
+            <div><b>Reported:</b> ${r.reportedIP || ''}</div>
+            <div><b>Reason:</b> ${r.reason || ''}</div>
+            <details><summary>Transcript (${(r.transcript||[]).length})</summary>
+              <pre>${(r.transcript||[]).map(x => JSON.stringify(x)).join('\n')}</pre>
+            </details>
+          </td>
+          <td class="actions">
+            <button class="ban" onclick="banIP('${(r.reportedIP||'').replace(/'/g,'')}')">Ban IP</button>
+            <button class="resolve" onclick="resolveReport('${r.id}')">Resolve</button>
+          </td>
+        </tr>
+      `).join('');
+      document.getElementById('out').innerHTML = `
+        <table>
+          <thead><tr><th>Time</th><th>Details</th><th>Actions</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan=3>No reports</td></tr>'}</tbody>
+        </table>`;
+    }
+    async function banIP(ip){
+      if (!ip) return alert('No IP on this report.');
+      if (!confirm('Ban ' + ip + '?')) return;
+      const res = await fetch('/admin/api/ban', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + KEY }, body: JSON.stringify({ ip }) });
+      alert('Banned: ' + ip);
+    }
+    async function resolveReport(id){
+      const res = await fetch('/admin/api/resolve', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + KEY }, body: JSON.stringify({ id }) });
+      loadReports();
+    }
+    loadReports();
+  </script>
+</body>
+</html>
