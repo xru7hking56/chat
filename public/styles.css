@@ -20,3 +20,6 @@
 @media (max-width:720px){.brand{width:100%;margin:2px 0 6px}.brand .dot{width:18px;height:18px}#btn-connect,#btn-next,#btn-block,#btn-exit,.badge{flex:1 1 calc(50% - var(--gap));min-height:var(--tap);font-size:16px}.btn{min-height:var(--tap);padding:0 14px}.dropdown{display:flex}.dropdown select{flex:1 1 160px;max-width:100%;min-height:var(--tap)}.canvas{position:static;min-height:100dvh}.messages{padding:14px;gap:14px}.row .meta{font-size:14px}.bubble .text{font-size:16px;line-height:1.45}.bottom{position:sticky;bottom:0;padding-bottom:calc(10px + var(--kb-safe-bottom))}}
 @media (min-width:721px) and (max-width:1024px){.btn,.dropdown select{min-height:40px}.bubble .text{font-size:16px}}
 :focus-visible{outline:3px solid rgba(11,121,255,.35);outline-offset:2px}
+.messages{ scroll-behavior:smooth; overscroll-behavior:contain; }
+.bottom{ padding-bottom: calc(10px + var(--kb-safe-bottom)); }
+
