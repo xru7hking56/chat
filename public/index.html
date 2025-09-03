@@ -2,21 +2,23 @@
 <html lang="ka">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>AnonChat • მარტივი ანონიმური ჩათი</title>
     <link rel="icon" href="/favicon.svg">
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <!-- Simple top bar -->
+    <!-- Top bar (always visible) -->
     <header class="bar">
       <div class="left">
         <div class="brand">
           <span class="dot"></span>
           <strong class="brand-text">AnonChat</strong>
         </div>
+
         <button id="btn-connect" class="btn orange">დაკავშირება</button>
         <button id="btn-next" class="btn violet">მომდევნო</button>
+
         <div class="dropdown">
           <label>ვარ</label>
           <select id="sel-gender">
@@ -25,6 +27,7 @@
             <option value="male">ბიჭი</option>
           </select>
         </div>
+
         <div class="dropdown">
           <label>ვეძებ</label>
           <select id="sel-seeking">
@@ -34,6 +37,7 @@
           </select>
         </div>
       </div>
+
       <div class="right">
         <button id="btn-block" class="btn red">დაბლოკვა</button>
         <span class="badge blue">Online Users <b id="online">0</b></span>
@@ -44,18 +48,18 @@
 
     <!-- Chat area -->
     <main class="canvas">
-      <div id="messages" class="messages">
-        <div class="msg system violet-bg">მიმდინარეობს პარტნიორის შერჩევა...</div>
-        <div class="msg system green-bg">ანოს კონტაქტი!</div>
-      </div>
-
+      <div id="messages" class="messages" aria-live="polite" aria-atomic="false"></div>
       <div id="typing" class="typing" hidden>ის წერს...</div>
 
       <form id="send-form" class="bottom" autocomplete="off">
-        <input id="message" type="text" placeholder="ის წერს..." maxlength="2000" />
+        <input id="message" type="text" inputmode="text"
+               placeholder="მეგობრული იყავი. არ გაგზავნო პირადი ინფორმაცია. 🔒" maxlength="2000" />
         <button type="submit" class="btn green send">გაგზავნა</button>
       </form>
     </main>
+
+    <!-- Optional floating 'Next' for phones -->
+    <button id="fab-next" class="fab-next" aria-label="მომდევნო">⟲</button>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/client.js"></script>
