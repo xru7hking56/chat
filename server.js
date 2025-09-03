@@ -1,11 +1,10 @@
-
-import fs from 'fs';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
+import fs from 'fs';
 
 const app = express();
-app.set('trust proxy', true); // so we can read correct client IP behind proxies
+app.set('trust proxy', true);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static('public'));
 
@@ -13,50 +12,32 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 const PORT = process.env.PORT || 3000;
-const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme-admin-key'; // set in production
+const ADMIN_KEY = process.env.ADMIN_KEY || 'changeme-admin-key';
 
+/* ===== In-memory state ===== */
+const waiting = new Set();
+const partnerOf = new Map();
+const profiles = new Map();
+const rate = new Map();
+
+const transcripts = new Map();
+const roomOf = new Map();
+
+let reports = [];
+let bannedIPs = new Set();
+
+/* ===== Persistence (sync) ===== */
 const DATA_DIR = './data';
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch {}
 const PATH_REPORTS = DATA_DIR + '/reports.json';
 const PATH_BANS = DATA_DIR + '/bans.json';
+function loadJSON(p, fallback){ try { return JSON.parse(fs.readFileSync(p,'utf-8')); } catch { return fallback; } }
+function saveJSON(p, obj){ try { fs.writeFileSync(p, JSON.stringify(obj,null,2)); } catch(e){ console.error('saveJSON failed', e); } }
 
-function loadJSON(p, fallback) {
-  try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }
-  catch { return fallback; }
-}
-function saveJSON(p, obj) {
-  try { fs.writeFileSync(p, JSON.stringify(obj, null, 2)); }
-  catch (e) { console.error('saveJSON failed', e); }
-}
+reports = loadJSON(PATH_REPORTS, []);
+bannedIPs = new Set(loadJSON(PATH_BANS, []));
 
-// ---- In-memory state ----
-/** waiting queue */
-const waiting = new Set();
-/** partner map socketId -> partnerId */
-const partnerOf = new Map();
-/** socket profiles */
-const profiles = new Map(); // id -> {gender,seeking,blocked:Set}
-/** throttle map */
-const rate = new Map(); // id -> {count, ts}
-
-/** transcripts per roomId */
-const transcripts = new Map(); // roomId -> [{type:'system'|'message', from:'you'|'stranger'|null, text, ts, ipYou, ipStranger}]
-/** current room for a socket */
-const roomOf = new Map(); // socketId -> roomId
-
-/** Reports storage */
-let reports = loadJSON(PATH_REPORTS, []);
-
-/** Banned IPs */
-let bannedIPs = new Set(loadJSON(PATH_BANS, []));
-
-// ---- Helpers ----
-async function bootLoad(){
-  try { reports = await loadJSON(PATH_REPORTS, []); } catch {}
-  try { const bans = await loadJSON(PATH_BANS, []); bannedIPs = new Set(bans); } catch {}
-  console.log('Loaded', reports.length, 'reports and', bannedIPs.size, 'bans');
-}
-
+/* ===== Helpers ===== */
 function allowMessage(socketId) {
   const now = Date.now();
   const r = rate.get(socketId) || { count: 0, ts: now };
@@ -65,61 +46,39 @@ function allowMessage(socketId) {
   rate.set(socketId, r);
   return r.count <= 6;
 }
-
-function sanitize(input) {
-  if (typeof input !== 'string') return '';
-  return input.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function onlineCount() {
-  return io.of('/').sockets.size;
-}
-
-function emitOnline() {
-  io.emit('online', onlineCount());
-}
-
-function getProfile(id) {
-  if (!profiles.has(id)) {
-    profiles.set(id, { gender: 'secret', seeking: 'any', blocked: new Set() });
-  }
-  return profiles.get(id);
-}
-
-function areCompatible(aId, bId) {
-  const a = getProfile(aId);
-  const b = getProfile(bId);
+function sanitize(input){ if (typeof input !== 'string') return ''; return input.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function onlineCount(){ return io.of('/').sockets.size; }
+function emitOnline(){ io.emit('online', onlineCount()); }
+function getProfile(id){ if (!profiles.has(id)) profiles.set(id, { gender:'secret', seeking:'any', blocked:new Set() }); return profiles.get(id); }
+function areCompatible(aId, bId){
+  const a = getProfile(aId), b = getProfile(bId);
   if (a.blocked.has(bId) || b.blocked.has(aId)) return false;
   const aLikesB = a.seeking === 'any' || a.seeking === getProfile(bId).gender;
   const bLikesA = b.seeking === 'any' || b.seeking === getProfile(aId).gender;
   return aLikesB && bLikesA;
 }
-
-function ipOf(socket) {
+function ipOf(socket){
   const xf = socket.handshake.headers['x-forwarded-for'];
   const addr = Array.isArray(xf) ? xf[0] : (xf || '');
   const ip = (addr.split(',')[0] || '').trim();
   return ip || socket.handshake.address || 'unknown';
 }
+function makeRoom(aId, bId){ return `pair:${[aId, bId].sort().join(':')}`; }
+function ensureTranscript(roomId){ if (!transcripts.has(roomId)) transcripts.set(roomId, []); return transcripts.get(roomId); }
+function appendSystem(roomId, text){ ensureTranscript(roomId).push({ type:'system', text, ts: Date.now() }); }
+function appendMessage(roomId, from, text){ ensureTranscript(roomId).push({ type:'message', from, text, ts: Date.now() }); }
 
-function makeRoom(aId, bId) {
-  return `pair:${[aId, bId].sort().join(':')}`;
+function leavePairRooms(socket){
+  try{
+    for (const room of socket.rooms) {
+      if (typeof room === 'string' && room.startsWith('pair:')) {
+        socket.leave(room);
+      }
+    }
+  }catch{}
 }
 
-function ensureTranscript(roomId) {
-  if (!transcripts.has(roomId)) transcripts.set(roomId, []);
-  return transcripts.get(roomId);
-}
-
-function appendSystem(roomId, text) {
-  ensureTranscript(roomId).push({ type: 'system', text, ts: Date.now() });
-}
-
-function appendMessage(roomId, from, text) {
-  ensureTranscript(roomId).push({ type: 'message', from, text, ts: Date.now() });
-}
-
-// ---- Matching ----
+/* ===== Matching ===== */
 function tryMatch(socket) {
   for (const otherId of waiting) {
     if (otherId === socket.id) continue;
@@ -134,7 +93,7 @@ function tryMatch(socket) {
       const b = io.sockets.sockets.get(otherId);
 
       roomOf.set(a.id, room);
-      roomOf.set(b.id, room);
+      if (b) roomOf.set(b.id, room);
 
       a.join(room);
       b?.join(room);
@@ -165,30 +124,23 @@ function breakPair(id, reason='დაკავშირება შეწყდ
   partnerOf.delete(id);
   partnerOf.delete(partnerId);
 
-  if (a) { a.emit('status', { type: 'disconnected' }); a.leaveAll(); roomOf.delete(a.id); }
-  if (b) { b.emit('status', { type: 'disconnected' }); b.leaveAll(); roomOf.delete(b.id); }
+  if (a) { a.emit('status', { type: 'disconnected' }); leavePairRooms(a); roomOf.delete(a.id); }
+  if (b) { b.emit('status', { type: 'disconnected' }); leavePairRooms(b); roomOf.delete(b.id); }
 
   if (a) a.emit('system', reason);
   if (b) b.emit('system', reason);
 }
 
-// ---- Admin auth middleware ----
-function requireAdmin(req, res, next) {
+/* ===== Admin API ===== */
+function requireAdmin(req, res, next){
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (token && token === ADMIN_KEY) return next();
   res.status(401).json({ error: 'Unauthorized' });
 }
 
-// ---- Admin API ----
-app.get('/admin', (_, res) => {
-  res.sendFile(process.cwd() + '/public/admin.html');
-});
-
-app.get('/admin/api/reports', requireAdmin, (_, res) => {
-  res.json({ reports });
-});
-
+app.get('/admin', (_, res) => res.sendFile(process.cwd() + '/public/admin.html'));
+app.get('/admin/api/reports', requireAdmin, (_, res) => res.json({ reports }));
 app.post('/admin/api/ban', requireAdmin, (req, res) => {
   const { ip } = req.body || {};
   if (!ip) return res.status(400).json({ error: 'ip required' });
@@ -196,11 +148,7 @@ app.post('/admin/api/ban', requireAdmin, (req, res) => {
   saveJSON(PATH_BANS, Array.from(bannedIPs));
   res.json({ ok: true, banned: Array.from(bannedIPs) });
 });
-
-app.get('/admin/api/bans', requireAdmin, (_, res) => {
-  res.json({ banned: Array.from(bannedIPs) });
-});
-
+app.get('/admin/api/bans', requireAdmin, (_, res) => res.json({ banned: Array.from(bannedIPs) }));
 app.post('/admin/api/resolve', requireAdmin, (req, res) => {
   const { id } = req.body || {};
   const idx = reports.findIndex(r => r.id === id);
@@ -208,10 +156,9 @@ app.post('/admin/api/resolve', requireAdmin, (req, res) => {
   saveJSON(PATH_REPORTS, reports);
   res.json({ ok: true });
 });
-
 app.get('/healthz', (_, res) => res.json({ ok: true }));
 
-// ---- Socket events ----
+/* ===== Sockets ===== */
 io.on('connection', (socket) => {
   const ip = ipOf(socket);
   if (bannedIPs.has(ip)) {
@@ -253,9 +200,7 @@ io.on('connection', (socket) => {
 
   socket.on('typing', (isTyping) => {
     const partnerId = partnerOf.get(socket.id);
-    if (partnerId) {
-      io.to(partnerId).emit('typing', !!isTyping);
-    }
+    if (partnerId) io.to(partnerId).emit('typing', !!isTyping);
   });
 
   socket.on('message', (text) => {
@@ -270,16 +215,15 @@ io.on('connection', (socket) => {
     }
     const clean = sanitize(String(text).slice(0, 2000));
     const room = roomOf.get(socket.id);
-    appendMessage(room, 'you', clean);
-    appendMessage(room, 'stranger', clean); // store both sides as they appear to each other? Keep one line as 'you' from sender; we'll map later
+    appendMessage(room, 'you', clean);      // single line in transcript
     io.to(partnerId).emit('message', { from: 'stranger', text: clean, ts: Date.now() });
     socket.emit('message', { from: 'you', text: clean, ts: Date.now() });
   });
 
-  socket.on('report', async ({ reason, blockNext }) => {
+  socket.on('report', ({ reason, blockNext }) => {
     const partnerId = partnerOf.get(socket.id);
     const room = roomOf.get(socket.id);
-    const transcript = (transcripts.get(room) || []).slice(-200); // cap last 200 lines
+    const transcript = (transcripts.get(room) || []).slice(-200);
     const reporterIP = ipOf(socket);
     const reportedIP = partnerId ? ipOf(io.sockets.sockets.get(partnerId)) : 'unknown';
     const submission = {
@@ -294,15 +238,12 @@ io.on('connection', (socket) => {
       transcript
     };
     reports.unshift(submission);
-    reports = reports.slice(0, 500); // cap to 500 most recent
-    await saveJSON(PATH_REPORTS, reports);
+    reports = reports.slice(0, 500);
+    saveJSON(PATH_REPORTS, reports);
     socket.emit('system', 'მადლობა. ანგარიში გადაგზავნილია ადმინთან.');
 
     if (blockNext && partnerId) {
-      // Block partner, end chat, and search a new one
-      try {
-        getProfile(socket.id).blocked.add(partnerId);
-      } catch {}
+      try { getProfile(socket.id).blocked.add(partnerId); } catch {}
       breakPair(socket.id, 'დაიბლოკა და გადადი შემდეგზე...');
       tryMatch(socket);
     }
@@ -310,16 +251,13 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     waiting.delete(socket.id);
-    if (partnerOf.has(socket.id)) {
-      breakPair(socket.id, 'უცნობი გავიდა ჩათიდან.');
-    }
+    if (partnerOf.has(socket.id)) breakPair(socket.id, 'უცნობი გავიდა ჩათიდან.');
     profiles.delete(socket.id);
     rate.delete(socket.id);
     emitOnline();
   });
 });
 
-await bootLoad();
 server.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
 });
