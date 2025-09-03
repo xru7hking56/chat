@@ -16,51 +16,39 @@
   const selGender  = $('#sel-gender');
   const selSeeking = $('#sel-seeking');
 
-  /* ============ Layout & keyboard handling ============ */
+  /* ===== Keep input above mobile keyboard and set input height CSS var ===== */
   function setKbSafeBottom(px){
     document.documentElement.style.setProperty('--kb-safe-bottom', `${Math.max(0, Math.floor(px))}px`);
   }
-  function viewportHeight() {
-    return window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  }
-  function computeLayout() {
-    const header = document.querySelector('.bar');
+  function updateInputHeightVar(){
     const bottom = document.querySelector('.bottom');
-    const hH = header ? header.getBoundingClientRect().height : 0;
-    const bH = bottom ? bottom.getBoundingClientRect().height : 0;
-    const pad = 4;
-    const vh = viewportHeight();
-    const h = Math.max(120, Math.floor(vh - hH - bH - pad));
-    if (messages) {
-      messages.style.height = h + 'px';
-      messages.style.maxHeight = h + 'px';
-      messages.style.overflowY = 'auto';
-    }
+    if (!bottom) return;
+    const h = Math.max(40, Math.round(bottom.getBoundingClientRect().height));
+    document.documentElement.style.setProperty('--input-h', h + 'px');
   }
-  // VisualViewport to lift input above keyboard + recalc layout
+
+  // VisualViewport reacts to keyboard
   if (window.visualViewport) {
     const vv = window.visualViewport;
     const applyVV = () => {
       const bottomGap = (window.innerHeight - (vv.height + vv.offsetTop));
       setKbSafeBottom(bottomGap);
-      computeLayout();
-      maybeScrollToBottom(true); // gentle nudge
+      maybeScrollToBottom(true);
+      updateInputHeightVar();
     };
     vv.addEventListener('resize', applyVV);
     vv.addEventListener('scroll', applyVV);
     applyVV();
+  } else {
+    updateInputHeightVar();
   }
 
-  // Debounced resize/orientation handling
-  let rAF;
-  function scheduleLayout() {
-    if (rAF) cancelAnimationFrame(rAF);
-    rAF = requestAnimationFrame(() => { computeLayout(); maybeScrollToBottom(true); });
-  }
-  window.addEventListener('resize', scheduleLayout);
-  window.addEventListener('orientationchange', () => setTimeout(scheduleLayout, 150));
+  // Update input height var when the input bar resizes (safe for desktop too)
+  const ro = new ResizeObserver(() => updateInputHeightVar());
+  const bottomEl = document.querySelector('.bottom');
+  if (bottomEl) ro.observe(bottomEl);
 
-  /* ============ Smart autoscroll ============ */
+  /* ===== Smart autoscroll (only if user is near bottom) ===== */
   function atBottom(threshold = 80) {
     if (!messages) return true;
     return (messages.scrollHeight - messages.scrollTop - messages.clientHeight) < threshold;
@@ -74,11 +62,11 @@
   function maybeScrollToBottom(force = false) {
     if (force || atBottom()) scrollToBottom();
   }
-  // Observe new nodes and autoscroll only if near bottom
+
   const mo = new MutationObserver(() => maybeScrollToBottom(false));
   if (messages) mo.observe(messages, { childList: true });
 
-  /* ============ Render helpers ============ */
+  /* ===== Render helpers ===== */
   function fmtTime(ts){
     const d = new Date(ts || Date.now());
     const pad = (n)=>String(n).padStart(2,'0');
@@ -122,17 +110,13 @@
   }
   function clearChat(){ if (messages) messages.innerHTML = ''; }
 
-  /* ============ UI events (existing buttons only) ============ */
+  /* ===== UI actions (existing buttons only) ===== */
   function connectNow() {
     socket.emit('setProfile', { gender: selGender?.value || 'secret', seeking: selSeeking?.value || 'any' });
     socket.emit('connectRequest');
   }
   btnConnect?.addEventListener('click', connectNow);
-  btnNext?.addEventListener('click', () => {
-    clearChat();
-    addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
-    socket.emit('next');
-  });
+  btnNext?.addEventListener('click', () => { clearChat(); addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet'); socket.emit('next'); });
   btnBlock?.addEventListener('click', () => socket.emit('block'));
   btnExit?.addEventListener('click', () => window.location.href = '/');
   btnReport?.addEventListener('click', () => {
@@ -140,12 +124,7 @@
     const doBlock = confirm('დაბლოკო მომხმარებელი და გადახვიდე შემდეგზე?');
     try { window.getSelection()?.removeAllRanges?.(); } catch {}
     socket.emit('report', { reason, blockNext: !!doBlock });
-    if (doBlock) {
-      clearChat();
-      addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
-    } else {
-      alert('ანგარიში გადაიგზავნა.');
-    }
+    if (doBlock) { clearChat(); addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet'); } else { alert('ანგარიში გადაიგზავნა.'); }
   });
 
   form?.addEventListener('submit', (e) => {
@@ -154,18 +133,18 @@
     if (!text) return;
     socket.emit('message', text);
     input.value = '';
-    input.focus();               // keep keyboard up
+    input.focus();                 // keep keyboard open
     socket.emit('typing', false);
-    maybeScrollToBottom(true);
+    maybeScrollToBottom(true);     // jump to bottom after sending
   });
   input?.addEventListener('input', () => {
     socket.emit('typing', true);
     clearTimeout(input._tt);
     input._tt = setTimeout(()=> socket.emit('typing', false), 700);
   });
-  input?.addEventListener('focus', () => { scheduleLayout(); maybeScrollToBottom(true); });
+  input?.addEventListener('focus', () => { maybeScrollToBottom(true); });
 
-  /* ============ socket events ============ */
+  /* ===== socket events ===== */
   socket.on('message', ({ from, text, ts }) => addRow(from, text, ts || Date.now()));
   socket.on('system', (t) => addStrip(t, 'violet'));
   socket.on('status', ({ type }) => {
@@ -189,7 +168,7 @@
   });
   socket.on('online', (n) => { onlineEl && (onlineEl.textContent = String(n)); });
 
-  // initial layout & hint
-  scheduleLayout();
+  // initial
   addStrip('მიმდინარეობს პარტნიორის შერჩევა...', 'violet');
+  updateInputHeightVar();
 })();
